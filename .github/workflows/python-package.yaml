@@ -27,8 +27,10 @@ jobs:
     - name: Install dependencies
       run: |
         pip3 install poetry
+        poetry config virtualenvs.in-project true # puts .venv in the current directory
+        poetry lock --no-update 
         poetry install
     - name: Test with pytest
       run: |
-        poetry shell
+        source $(poetry env info --path)/bin/activate
         pytest -k "not disable"
