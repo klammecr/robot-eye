@@ -130,6 +130,19 @@ def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     \param[in] im_hgt:    Height of the image in pixels
     \param[in] im_wid:    Width of the iamge in pixels
     """
+def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
+    """
+    Implementation of perspective projection of 3D points onto the image plane.
+    We keep this pretty ambigious to be more general.
+    E can define extrinsics from robot to the camera, world to the camera, etc.
+    We will only return points that are in the image plane.
+
+    \param[in] K_to_pix:  Intrinsics to convert pixels to meters, Shape: [3, 3]
+    \param[in] E_to_cam:  Extrinsics camera, Shape: [4, 4]
+    \param[in] X:         3D points, Shape: [4, N]
+    \param[in] im_hgt:    Height of the image in pixels
+    \param[in] im_wid:    Width of the iamge in pixels
+    """
     # Use extrinsics to have the 3D points relative to the camera of interest
     cam_pts  = transform_points_3d(E, X)
     cam_pts  = cam_pts[:-1]
@@ -144,10 +157,13 @@ def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
         mask = mask & (uv_pts[0] >= 0) & (uv_pts[0] < im_wid)
         mask = mask & (uv_pts[1] >= 0) & (uv_pts[1] < im_hgt)
     
+    # See if the depth is positive:
+    depths = cam_pts[2] 
+    mask   = mask & (depths > 0)
+    
     # Concatenate depth if desired
-    ret_pts = uv_pts[0:-1]
+    ret_pts = uv_pts[:-1]
     if ret_depth:
-        depths  = cam_pts[2] 
         ret_pts = np.vstack((ret_pts, depths.reshape(1, len(depths))))
     else:
         ret_pts = ret_pts.T
