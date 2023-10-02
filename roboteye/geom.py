@@ -1,5 +1,4 @@
 # Third Party
-import torch
 import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 
@@ -221,6 +220,7 @@ def bilinear_interpolate_torch(im, x, y):
     \param[in] x:  X location
     \param[in] y:  Y location
     """
+    import torch
     if torch.get_device(im) == -1:
         dtype      = torch.float
         dtype_long = torch.long

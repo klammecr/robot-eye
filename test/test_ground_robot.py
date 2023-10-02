@@ -15,6 +15,37 @@ cam_dx = 0.5
 cam_dy = 0.
 cam_dz = 0.25
 
+def rotationMatrixToQuaternion1(m):
+    #q0 = qw
+    t = np.matrix.trace(m)
+    q = np.asarray([0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+
+    if(t > 0):
+        t = np.sqrt(t + 1)
+        q[3] = 0.5 * t
+        t = 0.5/t
+        q[0] = (m[2,1] - m[1,2]) * t
+        q[1] = (m[0,2] - m[2,0]) * t
+        q[2] = (m[1,0] - m[0,1]) * t
+
+    else:
+        i = 0
+        if (m[1,1] > m[0,0]):
+            i = 1
+        if (m[2,2] > m[i,i]):
+            i = 2
+        j = (i+1)%3
+        k = (j+1)%3
+
+        t = np.sqrt(m[i,i] - m[j,j] - m[k,k] + 1)
+        q[i] = 0.5 * t
+        t = 0.5 / t
+        q[3] = (m[k,j] - m[j,k]) * t
+        q[j] = (m[j,i] + m[i,j]) * t
+        q[k] = (m[k,i] + m[i,k]) * t
+
+    return q
+
 class TestGroundRobot:
     def test_init(self):
         calib = get_calib(img_size=IMG_SIZE, cam_dx=cam_dx, cam_dy=cam_dy, cam_dz=cam_dz)
@@ -172,6 +203,46 @@ class TestGroundRobot:
         # Test outputs.
         assert world_points[:, :3].T == pytest.approx(body_points_aligned[:3, :] + t.reshape(3, 1))
         assert body_points[:3, :]  == pytest.approx(q1.rotation_matrix @  body_points_aligned[0:3, :])
+
+    # def test_P_simple(self):
+    #     f = 1000
+    #     # World frame
+    #     world_pts = np.array([
+    #         [1., 2., 3., 1.],
+    #         [4., 5., 6., 1.],
+    #         [7., 8., 9., 1.]
+    #     ])
+
+    #     # Camera frame
+    #     cam_pts = np.array([
+    #         [0, -2, -2],
+    #         [3, -5, 1],
+    #         [6, -6, 4]
+    #     ])
+
+    #     # Rotation from world to camera will do this:
+    #     # X -> Z
+    #     # Y -> X
+    #     # Z -> -Y
+    #     R_w_to_c = np.array([
+    #         [0, 0, 1],
+    #         [1, 0, 0],
+    #         [0, -1, 0]
+    #     ]).T
+
+    #     # from scipy.spatial import transform
+    #     # quat = transform.Rotation.from_matrix(R_w_to_c).as_quat()
+    #     # rot_mtx = transform.Rotation.from_quat(quat).as_matrix()
+    #     # f = Quaternion(quat[-1], quat[0], quat[1], quat[2]).rotation_matrix
+
+    #     # Camera calibration, camera intrinsics and extrinsics
+    #     calib = get_calib(img_size=IMG_SIZE, cam_dx=1, cam_dy=2, cam_dz=3, q_c=q_c, f = f)
+
+    #     ground_rob = GroundRobot(calib, q_c, world_t)
+        
+    #     E = ground_rob.get_E()
+    #     f = 0
+    #     #cam_pts = P @ world_pts.T
 
     def test_nuscenes_setup(self):
         """

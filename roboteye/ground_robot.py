@@ -149,7 +149,7 @@ class GroundRobot:
 
         \param[in] camera: Camera of interest (not needed if only one camera in system).
         """
-        K = None
+        K = np.eye(3)
         if self.K is not None:
             if camera is None:
                 K = self.K
@@ -166,7 +166,7 @@ class GroundRobot:
 
         \param[in] camera: Camera of interest (not needed if only one camera in system).
         """
-        E = None
+        E = np.eye(4)
         if self.E is not None and len(self.E) > 0:
             if camera is None:
                 E = self.E
@@ -175,6 +175,18 @@ class GroundRobot:
         else:
             warnings.warn("E is not initialized properly.")
         return E
+    
+    def get_P(self, camera = "0"):
+        """
+        Get the perspective projection matrix for the camera
+
+        Args:
+            camera (str, optional): Camera of interest. Defaults to "0".
+        """
+        K = np.eye(4)
+        K[:3, :3] = self.K[camera]
+        P = K @ self.E[camera] @ self.get_extrinsics_matrix(w_to_rob=True)
+        return P
     
     def get_extrinsics_matrix(self, w_to_rob = True):
         """

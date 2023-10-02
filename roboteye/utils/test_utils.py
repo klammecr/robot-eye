@@ -1,5 +1,6 @@
 # Third Party
 import numpy as np
+from pyquaternion import Quaternion
 
 def create_K(f, img_size):
     return np.array([[f, 0, (img_size[1]-1)/2],
@@ -15,11 +16,12 @@ def create_extrinsics(cam_dx, cam_dy, cam_dz, cam_placement):
     # This should be the inverse of the camera locations to transform pts
     return np.linalg.inv(E)
 
-def get_calib(img_size, cam_dx, cam_dy, cam_dz, f = 1, cam_placement = "middle"):
+def get_calib(img_size, cam_dx, cam_dy, cam_dz, q_c = Quaternion(1, 0, 0, 0), f = 1, cam_placement = "middle"):
     """
     Create camera calibration for testing purposes.
 
     \param[in] img_size:      (H,W) of size of image plane (pix)
+    \param[in] q_c:           Quaternion describing the rotation of the camera (including change of basis)
     \param[in] cam_dx:        X displacement of camera from world origin (m)
     \param[in] cam_dy:        Y displacement of camera from world origin (m)
     \param[in] cam_dz:        Z displacement of camera from world origin (m)
@@ -30,7 +32,9 @@ def get_calib(img_size, cam_dx, cam_dy, cam_dz, f = 1, cam_placement = "middle")
     """
     calib = {}
     calib["K"] = create_K(f, img_size)
-    calib["E"] = create_extrinsics(cam_dx, cam_dy, cam_dz, cam_placement)
+    cam_rot = np.eye(4)
+    cam_rot[:3, :3] = q_c.rotation_matrix
+    calib["E"] =  cam_rot @ create_extrinsics(cam_dx, cam_dy, cam_dz, cam_placement)
     return calib
 
 def get_calib_K(K, cam_dx, cam_dy, cam_dz, cam_placement="middle"):
