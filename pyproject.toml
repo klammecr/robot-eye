@@ -9,7 +9,7 @@ description = "A python package centered around a ego-centric robot and using co
 authors = ["Chris Klammer <cklammer@andrew.cmu.edu>"]
 
 [tool.poetry.dependencies]
-python = "^3.8, <3.9"
+python = "^3.8, <=3.11"
 pyquaternion = "^0.9.9"
 scipy = "^1.0"
 pytest = "*"
