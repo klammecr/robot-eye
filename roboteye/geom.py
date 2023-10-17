@@ -144,7 +144,7 @@ def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     """
     # Use extrinsics to have the 3D points relative to the camera of interest
     cam_pts  = transform_points_3d(E, X)
-    cam_pts  = cam_pts[:-1]
+    cam_pts  = (cam_pts / cam_pts[-1])[:3]
 
     # Project on to image plane (pi)
     uv_pts  = K @ cam_pts
