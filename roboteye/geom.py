@@ -164,8 +164,6 @@ def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     ret_pts = uv_pts[:-1]
     if ret_depth:
         ret_pts = np.vstack((ret_pts, depths.reshape(1, len(depths))))
-    else:
-        ret_pts = ret_pts.T
     return ret_pts, mask
 
 def transform_points_3d(E, X):
