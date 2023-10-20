@@ -94,6 +94,19 @@ def inv_pi(K_to_met, E_to_rob, locs, depths):
     rob_points         = E_to_rob @ cam_points_homog
     return rob_points
 
+def in_img_frame(uv_pts, depths, img_wid, img_hgt):
+    # See if it's in the image plane
+    mask = np.ones((uv_pts.shape[1])).astype("bool")
+    if img_hgt is not None and img_wid is not None:
+        mask = mask & (uv_pts[0] >= 0) & (uv_pts[0] < img_wid)
+        mask = mask & (uv_pts[1] >= 0) & (uv_pts[1] < img_hgt)
+    
+    # See if the depth is positive:
+    if depths is not None:
+        mask = mask & (depths > 0) 
+
+    return mask   
+
 def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     """
     Implementation of perspective projection of 3D points onto the image plane.
@@ -116,14 +129,8 @@ def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     uv_pts /= uv_pts[-1, :]
 
     # See if it's in the image plane
-    mask = cam_pts[2] > 0
-    if im_hgt is not None and im_wid is not None:
-        mask = mask & (uv_pts[0] >= 0) & (uv_pts[0] < im_wid)
-        mask = mask & (uv_pts[1] >= 0) & (uv_pts[1] < im_hgt)
-    
-    # See if the depth is positive:
-    depths = cam_pts[2] 
-    mask   = mask & (depths > 0)
+    depths = cam_pts[2]
+    mask   = in_img_frame(uv_pts, depths, im_wid, im_hgt)
     
     # Concatenate depth if desired
     ret_pts = uv_pts[:-1]
