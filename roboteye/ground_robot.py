@@ -28,12 +28,31 @@ class Frames(Enum):
     CAM_FRAME                = 3
     IMG_FRAME                = 4
 
+class COB(Enum):
+    """
+    Following conversions are supported:
+
+    NED_TO_CAM: NED body frame to X right Y down Z depth
+
+    Args:
+        Enum (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    NED_TO_CAM = np.array([
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 1]
+    ])
+
 class GroundRobot:
     """
     The robot class is in charge of tracking a single frame of the robot (keyframe)
     This information will be used and altered when the pose estimation is done.
     """
-    def __init__(self, cam_calib = {}, rob_q = None, rob_t = None):
+    def __init__(self, cam_calib = {}, rob_q = None, rob_t = None, cob = None):
         """
         Initialize the robot frame.
 
@@ -47,6 +66,14 @@ class GroundRobot:
         self.E = {}
         self.q = None
         self.t = None
+
+        # Support change of basis for cameras
+        if cob is None:
+            self.camera_cob = np.eye(4)
+        elif cob in COB:
+            self.camera_cob = cob.value
+        else:
+            self.camera_cob = cob
 
         # Support for multiple cameras but only one robot pose
         if "K" in cam_calib.keys():
@@ -95,16 +122,8 @@ class GroundRobot:
         for camera_str in calib.keys():
             # Add the intrinsics information
             cam_calib = calib[camera_str]
-            self.add_camera_intrinsics(cam_calib["camera_intrinsic"], camera_str)
-            
-            # Create the rotation matrix and add the extrinsic information
-            cam_rot     = cam_calib["rotation"]
-            q           = Quaternion(cam_rot[0], cam_rot[1], cam_rot[2], cam_rot[3])
-            R           = np.eye(4)
-            t           = np.eye(4)
-            R[0:3, 0:3] = q.rotation_matrix
-            t[0:3, 3]   = cam_calib["translation"]
-            self.add_camera_extrinsics(R@t, camera_str)
+            self.add_camera_intrinsics(cam_calib["K"], camera_str)
+            self.add_camera_extrinsics(cam_calib["E"], camera_str)
 
     def add_camera_intrinsics(self, K, camera_str):
         """
@@ -266,16 +285,23 @@ class GroundRobot:
             K = np.linalg.inv(K)
 
         # Project or unproject if need be
+        T = E @ M
         if in_frame == Frames.IMG_FRAME:
             depths  = points[:, 2].reshape(points.shape[0], 1)
             locs    = (points[:, :3] / depths)[:, :2]
-            out_pts = inv_pi(K, E @ M, locs, depths.flatten())
+            out_pts = inv_pi(K, T, locs, depths.flatten())
         elif out_frame == Frames.IMG_FRAME:
             img_w = K[0, 2] * 2
             img_h = K[1, 2] * 2
-            out_pts = pi(K, E @ M, points, img_h, img_w)
+            if in_frame == Frames.CAM_FRAME:
+                out_pts = pi(K, T, points, img_h, img_w)[0]
+            else:
+                out_pts = pi(K, self.camera_cob @ T, points, img_h, img_w)[0]
         else:
-            out_pts = transform_points_3d(E @ M, points)
+            if out_frame == Frames.CAM_FRAME:
+                T = self.camera_cob @ T
+
+            out_pts = transform_points_3d(T, points)
 
         # Special Case: Aligning basis vectors to world frame but in the body frame
         if out_frame == Frames.BODY_FRAME_WORLD_ALIGNED:

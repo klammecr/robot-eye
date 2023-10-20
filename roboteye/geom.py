@@ -72,28 +72,6 @@ def merge_intrinsics(fx, fy, x0, y0):
     K[:,3,3] = 1.0
     return K
 
-# def inv_pi_rob(robot_frame : GroundRobot, locs, depths):
-#     """
-#     Implementation of perspective projection from image plane to robot frame.
-#     This variant uses a robot frame object.
-#     Take the robot pose and the location of points and project them into 3D in the robot frame.
-
-#     \param[in] robot_frame: The pose of the robot
-#     \param[in] locs:        Locations of points with registered depth in the frame
-#     \param[in] depth:       Associated depths in the image frame
-#     """
-
-#     # Hand calculate which voxels are hit
-#     K_pix_to_metric = np.linalg.inv(robot_frame.get_K())
-
-#     # Extract out rotation and translation
-#     # Then invert them to go to camera
-#     E = robot_frame.get_E()
-#     E_to_cam           = np.eye(4)
-#     E_to_cam[0:3, 0:3] = E[0:3, 0:3].T
-#     E_to_cam[0:3, -1]  = -E[0:3, -1]
-#     return inv_pi(K_pix_to_metric, E_to_cam, locs, depths)
-
 def inv_pi(K_to_met, E_to_rob, locs, depths):
     """
     Implementation of perspective projection from image plane to robot frame.
@@ -116,19 +94,6 @@ def inv_pi(K_to_met, E_to_rob, locs, depths):
     rob_points         = E_to_rob @ cam_points_homog
     return rob_points
 
-def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
-    """
-    Implementation of perspective projection of 3D points onto the image plane.
-    We keep this pretty ambigious to be more general.
-    E can define extrinsics from robot to the camera, world to the camera, etc.
-    We will only return points that are in the image plane.
-
-    \param[in] K_to_pix:  Intrinsics to convert pixels to meters, Shape: [3, 3]
-    \param[in] E_to_cam:  Extrinsics camera, Shape: [4, 4]
-    \param[in] X:         3D points, Shape: [4, N]
-    \param[in] im_hgt:    Height of the image in pixels
-    \param[in] im_wid:    Width of the iamge in pixels
-    """
 def pi(K, E, X, im_hgt = None, im_wid = None, ret_depth = True):
     """
     Implementation of perspective projection of 3D points onto the image plane.

@@ -57,3 +57,21 @@ def setup_camera_fov(hfov, wid, hgt, sens_width=13.2):
                   [0, f, (hgt-1)/2],
                   [0, 0, 1]])
     return K
+
+def create_bbox_pts(obj_bboxes, obj_rots):
+    final_pts = []
+    for obj_num in range(obj_bboxes.shape[0]):
+        # Compute the verticies then rotate them
+        obj_bbox = obj_bboxes[obj_num]
+        obj_rot  = obj_rots[obj_num]
+        xc, yc, zc, dx, dy, dz = obj_bbox
+        bounding_pts = []
+        for x_off in [-dx/2, dx/2]:
+            for y_off in [-dy/2, dy/2]:
+                for z_off in [-dz/2, dz/2]:
+                    # Just rotate the offset because this is rotating relative to the
+                    # centroid of the robot
+                    offset = obj_rot.rotate([x_off, y_off, z_off])
+                    bounding_pts.append(np.array([xc, yc, zc]) + np.array(offset))
+        final_pts.append(bounding_pts)
+    return np.array(final_pts)

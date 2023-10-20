@@ -4,8 +4,8 @@ from pyquaternion import Quaternion
 import numpy as np
 
 # In House
-from roboteye.ground_robot import GroundRobot, Frames
-from roboteye.utils.test_utils import get_calib
+from roboteye.ground_robot import GroundRobot, Frames, COB
+from roboteye.utils.test_utils import get_calib, create_bbox_pts
 
 # Constants
 IMG_SIZE = (256, 512)
@@ -244,58 +244,78 @@ class TestGroundRobot:
     #     f = 0
     #     #cam_pts = P @ world_pts.T
 
-    def test_nuscenes_setup(self):
+    def test_nuscenes_change_of_basis(self):
         """
         Test a system with nuscenes world frame, robot frame, and camera frame.
         """
         # Change in coordinate system
         # From new to old for column vectors
         # Same as taking old to new and transposing
-        # T_rob_to_cam = np.array([\
-        #     [0, -1, 0], # X is -Y in rob frame
-        #     [0, 0, -1], # Y is -Z in rob frame
-        #     [1, 0, 0]   # Z is X in rob frame
-        #     ]).T
+
+        T_rob_to_cam = COB.NED_TO_CAM
         
-        # # Target Locations in the Robot Frame:
-        # # X, Y, Z, W, H
-        # target_locs = np.array([[2, 3, 0, 0.25, 0.25],
-        #                         [1, -3.5, 0.25, 0.25, 0.25],
-        #                         [2.5, 1., 0.5, 0.25, 0.25]])
+        # Target Locations in the Robot Frame:
+        # X, Y, Z, W (DY), H (DZ)
+        target_locs = np.array([[2, 3, 0, 0.25, 0.25, 0.25],
+                                [1, -3.5, 0.25, 0.25, 0.25, 0.25],
+                                [2.5, 1., 0.5, 0.25, 0.25, 0.5]])
+        tgt_rot = [Quaternion(),
+        Quaternion(),
+        Quaternion()]
 
-        # # Camera 1 transformation matrix
-        # cam1_loc = np.array([1., 1.5, 0.])
-        # cam1_rot = Quaternion(angle = np.pi/4, axis = [0, 0, 1])
-        # T_cam_1  = np.eye(4)
-        # T_cam_1[0:3, 0:3] = cam1_rot.rotation_matrix
-        # T_cam_1[0:3, -1]  = cam1_loc
+        # Camera 1 transformation matrix
+        cam1_loc = np.array([0., 1.5, 0.])
+        cam1_rot = Quaternion(angle = 0, axis = [0, 0, 1])
+        T_cam_1  = np.eye(4)
+        T_cam_1[0:3, 0:3] = cam1_rot.rotation_matrix
+        T_cam_1[0:3, -1]  = -cam1_rot.rotation_matrix@cam1_loc
 
-        # # Camera 2 transformation matrix
-        # cam2_loc = np.array([1., -1.5, 0.])
-        # cam2_rot = Quaternion(angle = -np.pi/4, axis = [0, 0, 1])
-        # T_cam_2  = np.eye(4)
-        # T_cam_2[0:3, 0:3] = cam2_rot.rotation_matrix
-        # T_cam_2[0:3, -1]  = cam2_loc
+        # Camera 2 transformation matrix
+        cam2_loc = np.array([0., -1.5, 0.])
+        cam2_rot = Quaternion(angle = 0, axis = [0, 0, 1])
+        T_cam_2  = np.eye(4)
+        T_cam_2[0:3, 0:3] = cam2_rot.rotation_matrix
+        T_cam_2[0:3, -1]  = -cam2_rot.rotation_matrix@cam2_loc
         
-        # # Create robot frame
-        # calib = {}
-        # calib["0"]["K"] = np.array([200, 0, 256],
-        #                            [0, 200, 256],
-        #                            [0, 0, 1])
-        # calib["0"]["E"] = T_cam_1
-        # calib["1"]["K"] = np.array([200, 0, 256],
-        #                            [0, 200, 256],
-        #                            [0, 0, 1])
-        # calib["1"]["E"] = T_cam_2
+        # Create robot frame with two affine cameras
+        calib = {}
+        calib["0"] = {}
+        calib["1"] = {}
+        calib["0"]["K"] = np.array([[200, 0, 256],
+                                   [0, 200, 256],
+                                   [0, 0, 1]])
+        calib["0"]["E"] = T_cam_1
+        calib["1"]["K"] = np.array([[200, 0, 256],
+                                   [0, 200, 256],
+                                   [0, 0, 1]])
+        calib["1"]["E"] = T_cam_2
 
-        # # Create robot frame
-        # rob_frame = GroundRobot(calib, Quaternion(), rob_C = np.array([1, 0, 0]))
+        # Create robot frame, forward 1 meter in the world frame
+        rob_frame = GroundRobot(calib, Quaternion(), rob_t = np.array([1, 0, 0]), cob=COB.NED_TO_CAM)
 
-        # # Create bounding points for the objects and put them in the images
-        # for loc in target_locs:
-        #     x, y, z, w, h = loc
-        #     ly = y - w/2
-        #     ry = y + w/2
-        #     uz = z + h/2
-        #     lz = z - h/2
-        pass
+        # 1. Just check if the locations are correct in the camera frame
+        # Create the points for the vertiices of the bounding box
+
+        # Check against hand calculated points
+        hand_calc_pts_0 = np.array([
+                [1.5, 0, 1],
+                [-5, 0.25, 0],
+                [-0.5, 0.5, 1.5]])
+        hand_calc_pts_1 = np.array([
+                [4.5, 0, 1],
+                [-2, .25, 0],
+                [2.5, .5, 1.5]])
+        for idx, loc in enumerate(target_locs):
+            
+            # Homogenous locations for centroids
+            loc_homog = np.append(loc[:3], 1).reshape(4, 1)
+
+            # Transform with the class
+            cam_pts_0 = rob_frame.transform_points(loc_homog, Frames.WORLD_FRAME, Frames.CAM_FRAME, camera="0")
+            cam_pts_1 = rob_frame.transform_points(loc_homog, Frames.WORLD_FRAME, Frames.CAM_FRAME, camera="1")
+
+            assert hand_calc_pts_0[idx] == pytest.approx(cam_pts_0[:3].reshape(3,))
+            assert hand_calc_pts_1[idx] == pytest.approx(cam_pts_1[:3].reshape(3,))
+
+    # Transform these points to the camera frame
+    # bbox_homog = np.hstack((bbox, np.ones((bbox.shape[0], 1))))
