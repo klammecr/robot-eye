@@ -5,7 +5,7 @@ import numpy as np
 
 # In House
 from roboteye.ground_robot import GroundRobot, Frames, COB
-from roboteye.utils.test_utils import get_calib, create_bbox_pts
+from roboteye.utils.test_utils import get_calib, create_bbox_pts, create_stereo_camera_setup, interpolate_vud
 
 # Constants
 IMG_SIZE = (256, 512)
@@ -244,7 +244,7 @@ class TestGroundRobot:
     #     f = 0
     #     #cam_pts = P @ world_pts.T
 
-    def test_nuscenes_change_of_basis(self):
+    def test_ned_cam_change_of_basis(self):
         """
         Test a system with nuscenes world frame, robot frame, and camera frame.
         """
@@ -263,32 +263,7 @@ class TestGroundRobot:
         Quaternion(),
         Quaternion()]
 
-        # Camera 1 transformation matrix
-        cam1_loc = np.array([0., 1.5, 0.])
-        cam1_rot = Quaternion(angle = 0, axis = [0, 0, 1])
-        T_cam_1  = np.eye(4)
-        T_cam_1[0:3, 0:3] = cam1_rot.rotation_matrix
-        T_cam_1[0:3, -1]  = -cam1_rot.rotation_matrix@cam1_loc
-
-        # Camera 2 transformation matrix
-        cam2_loc = np.array([0., -1.5, 0.])
-        cam2_rot = Quaternion(angle = 0, axis = [0, 0, 1])
-        T_cam_2  = np.eye(4)
-        T_cam_2[0:3, 0:3] = cam2_rot.rotation_matrix
-        T_cam_2[0:3, -1]  = -cam2_rot.rotation_matrix@cam2_loc
-        
-        # Create robot frame with two affine cameras
-        calib = {}
-        calib["0"] = {}
-        calib["1"] = {}
-        calib["0"]["K"] = np.array([[200, 0, 256],
-                                   [0, 200, 256],
-                                   [0, 0, 1]])
-        calib["0"]["E"] = T_cam_1
-        calib["1"]["K"] = np.array([[200, 0, 256],
-                                   [0, 200, 256],
-                                   [0, 0, 1]])
-        calib["1"]["E"] = T_cam_2
+        calib = create_stereo_camera_setup()
 
         # Create robot frame, forward 1 meter in the world frame
         rob_frame = GroundRobot(calib, Quaternion(), rob_t = np.array([1, 0, 0]), cob=COB.NED_TO_CAM)
@@ -317,5 +292,55 @@ class TestGroundRobot:
             assert hand_calc_pts_0[idx] == pytest.approx(cam_pts_0[:3].reshape(3,))
             assert hand_calc_pts_1[idx] == pytest.approx(cam_pts_1[:3].reshape(3,))
 
-    # Transform these points to the camera frame
-    # bbox_homog = np.hstack((bbox, np.ones((bbox.shape[0], 1))))
+    def test_ned_img_change_of_basis(self):
+        # Target Locations in the Robot Frame:
+        # X, Y, Z, W (DY), H (DZ)
+        target_locs = np.array([[2, 3, 0, 0.25, 0.25, 0.25],
+                                [1, -3.5, 0.25, 0.25, 0.25, 0.25],
+                                [2.5, 1., 0.5, 0.25, 0.25, 0.5]])
+        tgt_rot = [Quaternion(),
+        Quaternion(),
+        Quaternion()]
+
+        calib = create_stereo_camera_setup()
+
+        # Create robot frame, forward 1 meter in the world frame
+        rob_frame = GroundRobot(calib, Quaternion(), rob_t = np.array([1, 0, 0]), cob=COB.NED_TO_CAM)
+
+        # Let's see if the front face of the bounding box can be projected
+        hand_calc_pts_0 = np.array([
+                [1.5 , 0, 1],
+                [-5, 0.25, 0],
+                [-0.5, 0.5, 1.5]])
+        hand_calc_pts_1 = np.array([
+                [4.5, 0, 1],
+                [-2, .25, 0],
+                [2.5, .5, 1.5]])
+
+        bbox_pts = create_bbox_pts(target_locs, tgt_rot)
+        for bbox in bbox_pts:
+            # T matrix from world to image
+            K_0 = np.eye(4)
+            K_0[:3, :3] = rob_frame.get_K("0")
+            K_1 = np.eye(4)
+            K_1[:3, :3] = rob_frame.get_K("1")
+            T_0 = K_0 @ rob_frame.camera_cob @ rob_frame.get_E("0") @ rob_frame.get_extrinsics_matrix()
+            T_1 = K_1 @ rob_frame.camera_cob @ rob_frame.get_E("1") @ rob_frame.get_extrinsics_matrix() 
+
+            # Check camera 0
+            img_pts_check_0 = (T_0 @ bbox.T)[:3]
+            img_pts_check_0 /= img_pts_check_0[-1]
+            bounding_vu_0, mask = rob_frame.transform_points(np.array(bbox), 
+                                                in_frame = Frames.WORLD_FRAME, 
+                                                out_frame = Frames.IMG_FRAME,
+                                                camera = "0")
+            # Check camera 1
+            img_pts_check_1 = (T_1 @ bbox.T)[:3]
+            img_pts_check_1 /= img_pts_check_1[-1]
+            bounding_vu_1, mask = rob_frame.transform_points(np.array(bbox), 
+                                                in_frame = Frames.WORLD_FRAME, 
+                                                out_frame = Frames.IMG_FRAME,
+                                                camera = "1")
+            
+            assert bounding_vu_0[:2] == pytest.approx(img_pts_check_0[:2])
+            assert bounding_vu_1[:2] == pytest.approx(img_pts_check_1[:2])

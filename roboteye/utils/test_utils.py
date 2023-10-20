@@ -66,12 +66,75 @@ def create_bbox_pts(obj_bboxes, obj_rots):
         obj_rot  = obj_rots[obj_num]
         xc, yc, zc, dx, dy, dz = obj_bbox
         bounding_pts = []
-        for x_off in [-dx/2, dx/2]:
-            for y_off in [-dy/2, dy/2]:
-                for z_off in [-dz/2, dz/2]:
-                    # Just rotate the offset because this is rotating relative to the
-                    # centroid of the robot
-                    offset = obj_rot.rotate([x_off, y_off, z_off])
-                    bounding_pts.append(np.array([xc, yc, zc]) + np.array(offset))
+        for x in [xc-dx/2, xc+dx/2]:
+            for y in [yc-dy/2, yc+dy/2]:
+                for z in [zc-dz/2, zc+dz/2]:
+                    x_r, y_r, z_r = obj_rot.rotate([x, y, z])
+                    bounding_pts.append([x_r, y_r, z_r, 1])
         final_pts.append(bounding_pts)
     return np.array(final_pts)
+
+def create_stereo_camera_setup(yaw = 0):
+    # Camera 1 transformation matrix
+    cam1_loc = np.array([0., 1.5, 0.])
+    cam1_rot = Quaternion(angle = yaw, axis = [0, 0, 1])
+    T_cam_1  = np.eye(4)
+    T_cam_1[0:3, 0:3] = cam1_rot.rotation_matrix
+    T_cam_1[0:3, -1]  = -cam1_rot.rotation_matrix@cam1_loc
+
+    # Camera 2 transformation matrix
+    cam2_loc = np.array([0., -1.5, 0.])
+    cam2_rot = Quaternion(angle = -yaw, axis = [0, 0, 1])
+    T_cam_2  = np.eye(4)
+    T_cam_2[0:3, 0:3] = cam2_rot.rotation_matrix
+    T_cam_2[0:3, -1]  = -cam2_rot.rotation_matrix@cam2_loc
+    
+    # Create robot frame with two affine cameras
+    calib = {}
+    calib["0"] = {}
+    calib["1"] = {}
+    calib["0"]["K"] = np.array([[200, 0, 256],
+                                [0, 200, 256],
+                                [0, 0, 1]])
+    calib["0"]["E"] = T_cam_1
+    calib["1"]["K"] = np.array([[200, 0, 256],
+                                [0, 200, 256],
+                                [0, 0, 1]])
+    calib["1"]["E"] = T_cam_2
+    return calib
+
+def interpolate_vud(vud_pts, img_wid=512, img_hgt=256, method = "weighted"):
+    """
+    Raster the v,u points into an image, interpolating the depth between the points.
+    We will essentially do an inverse distance weighting for the missing pixels.
+
+    Args:
+        vud_pts (np.ndarray): (3, N) [V (x), U (y), depth]
+        img_wid (int, optional): _description_. Defaults to IMG_WID.
+        img_hgt (_int, optional): _description_. Defaults to IMG_HGT.
+    """
+    # Instaniate image
+    img = np.zeros((img_hgt, img_wid))
+
+    # Bounds of the image
+    if vud_pts.shape[1] > 0:
+        min_x = np.clip(np.min(vud_pts[0]), 0, img_wid-1).astype("int")
+        max_x = np.clip(np.max(vud_pts[0]), 0, img_wid-1).astype("int")
+        min_y = np.clip(np.min(vud_pts[1]), 0, img_hgt-1).astype("int")
+        max_y = np.clip(np.max(vud_pts[1]), 0, img_hgt-1).astype("int")
+
+        # Interpolate based on the number of points
+        for x in range(min_x, max_x+1):
+            for y in range(min_y, max_y+1):
+                if method == "weighted":
+                    # We can weight by distance from all 8 points:
+                    dist  = np.linalg.norm(np.array([x, y]).reshape(2, 1) - vud_pts[:2], axis = 0)
+                    power = 1
+                    wgts  = 1/(dist**power)
+                    wgts /= np.sum(wgts)
+                    img[y,x] = np.sum(wgts*vud_pts[2])
+                elif method == "constant":
+                    dist  = np.linalg.norm(np.array([x, y]).reshape(2, 1) - vud_pts[:2], axis = 0)
+                    img[y,x] = vud_pts[2, np.argmin(dist)]
+
+    return img
