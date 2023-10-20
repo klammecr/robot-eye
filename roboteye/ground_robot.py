@@ -294,9 +294,9 @@ class GroundRobot:
             img_w = K[0, 2] * 2
             img_h = K[1, 2] * 2
             if in_frame == Frames.CAM_FRAME:
-                out_pts = pi(K, T, points, img_h, img_w)[0]
+                out_pts = pi(K, T, points, img_h, img_w)
             else:
-                out_pts = pi(K, self.camera_cob @ T, points, img_h, img_w)[0]
+                out_pts = pi(K, self.camera_cob @ T, points, img_h, img_w)
         else:
             if out_frame == Frames.CAM_FRAME:
                 T = self.camera_cob @ T
