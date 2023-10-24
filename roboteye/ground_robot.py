@@ -279,10 +279,12 @@ class GroundRobot:
                 K = self.get_K(camera)
 
         # We are going towards the world
+        camera_cob = self.camera_cob
         if direction == -1:
             M = np.linalg.inv(M)
             E = np.linalg.inv(E)
             K = np.linalg.inv(K)
+            camera_cob = np.linalg.inv(camera_cob)
 
         # Project or unproject if need be
         T = E @ M
