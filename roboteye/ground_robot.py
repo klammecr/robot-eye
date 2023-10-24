@@ -295,7 +295,7 @@ class GroundRobot:
            in_frame == Frames.CAM_FRAME or \
            out_frame == Frames.CAM_FRAME and \
            abs(in_frame.value - out_frame.value) > 1:
-            T = self.camera_cob @ T
+            T = camera_cob @ T
 
         if in_frame == Frames.IMG_FRAME:
             depths  = points[:, 2].reshape(points.shape[0], 1)
