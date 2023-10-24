@@ -286,6 +286,15 @@ class GroundRobot:
 
         # Project or unproject if need be
         T = E @ M
+
+        # In this case, we will need the change of basis
+        if in_frame == Frames.IMG_FRAME or \
+           out_frame == Frames.IMG_FRAME or \
+           in_frame == Frames.CAM_FRAME or \
+           out_frame == Frames.CAM_FRAME and \
+           abs(in_frame.value - out_frame.value) > 1:
+            T = self.camera_cob @ T
+
         if in_frame == Frames.IMG_FRAME:
             depths  = points[:, 2].reshape(points.shape[0], 1)
             locs    = (points[:, :3] / depths)[:, :2]
@@ -293,14 +302,9 @@ class GroundRobot:
         elif out_frame == Frames.IMG_FRAME:
             img_w = K[0, 2] * 2
             img_h = K[1, 2] * 2
-            if in_frame == Frames.CAM_FRAME:
-                out_pts = pi(K, T, points, img_h, img_w)
-            else:
-                out_pts = pi(K, self.camera_cob @ T, points, img_h, img_w)
-        else:
-            if out_frame == Frames.CAM_FRAME:
-                T = self.camera_cob @ T
+            out_pts = pi(K, T, points, img_h, img_w)
 
+        else:
             out_pts = transform_points_3d(T, points)
 
         # Special Case: Aligning basis vectors to world frame but in the body frame
