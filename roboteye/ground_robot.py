@@ -290,11 +290,12 @@ class GroundRobot:
         T = E @ M
 
         # In this case, we will need the change of basis
-        if in_frame == Frames.IMG_FRAME or \
+        if (in_frame == Frames.IMG_FRAME or \
            out_frame == Frames.IMG_FRAME or \
            in_frame == Frames.CAM_FRAME or \
-           out_frame == Frames.CAM_FRAME and \
+           out_frame == Frames.CAM_FRAME) and \
            abs(in_frame.value - out_frame.value) > 1:
+            print("I am doing it")
             T = camera_cob @ T
 
         if in_frame == Frames.IMG_FRAME:
