@@ -154,7 +154,7 @@ class GroundRobot:
             self.q = Quaternion(rot_quat)
 
         if position is not None:
-            self.C = -position
+            self.rob_pos = position
 
     def get_rotation_matrix(self):
         """
@@ -231,7 +231,7 @@ class GroundRobot:
 
         # Set the rotation and translation then find the extrinsics matrix
         R_rob_to_w[0:3, 0:3] = self.get_rotation_matrix()
-        t_rob_to_w[0:3, 3]   = self.C
+        t_rob_to_w[0:3, 3]   = -self.rob_pos
         M                    = R_rob_to_w @ t_rob_to_w
 
         # Invert the matrix if we are going from world to robot
@@ -251,12 +251,12 @@ class GroundRobot:
 
         Returns: World points of shape [n, 4]
         """
+        # NOTE: Yeah, this has gotten a bit hacky over time. I have a TODO in the future to clean up this logic.
+
         # Input Checking
         if points.shape[1] != 3 and points.shape[0] == 3 and in_frame == Frames.IMG_FRAME or \
            points.shape[1] != 4 and points.shape[0] == 4 and in_frame != Frames.IMG_FRAME:
             points = points.T
-        # if points.shape[1] == 3 and in_frame == Frames.IMG_FRAME:
-        #     points = np.hstack((points, np.ones((points.shape[0], 1))))
 
         # Trivial case
         if in_frame == out_frame:
@@ -264,22 +264,35 @@ class GroundRobot:
 
         # Decide how to transform the points
         direction = 2 * int((in_frame.value - out_frame.value) < 0) - 1
-        M = np.eye(4)
+        M_t = np.eye(4)
+        M_r = np.eye(4)
         E = np.eye(4)
         K = np.eye(3)
         for i in range(in_frame.value, out_frame.value + direction, direction):
             # These conditions are for if we need camera extrinsics.
-            need_extr = (in_frame.value - i) != 0 and \
-                        ((i==2 and direction==-1) or (i==3 and direction==1))
+            need_cam_extr = (in_frame.value - i) != 0 and \
+                            ((i==2 and direction==-1) or (i==3 and direction==1))
+            
+            # Move to world center
             if i == 0:
-                M = self.get_extrinsics_matrix(w_to_rob=True)       
-            elif need_extr:
-                E = self.get_E(camera)   
+                M_t[:3, -1] = -self.rob_pos
+            # Aligning points that were w.r.t. robot
+            if i == 1 and direction == -1 or i == 2 and direction == 1:
+                M_r = self.q.transformation_matrix
+            # Translate to camera rot, translation
+            elif need_cam_extr:
+                E = self.get_E(camera)
+            # Use cam intrinsics
             elif i == 4:
                 K = self.get_K(camera)
 
-        # We are going towards the world
+        # Change of basis:
         camera_cob = self.camera_cob
+
+        # Composing rotation and translation of robot
+        M = M_r @ M_t
+
+        # We are going towards the world
         if direction == -1:
             M = np.linalg.inv(M)
             E = np.linalg.inv(E)
@@ -295,7 +308,6 @@ class GroundRobot:
            in_frame == Frames.CAM_FRAME or \
            out_frame == Frames.CAM_FRAME) and \
            abs(in_frame.value - out_frame.value) > 1:
-            print("I am doing it")
             T = camera_cob @ T
 
         if in_frame == Frames.IMG_FRAME:
@@ -311,9 +323,10 @@ class GroundRobot:
             out_pts = transform_points_3d(T, points)
 
         # Special Case: Aligning basis vectors to world frame but in the body frame
-        if out_frame == Frames.BODY_FRAME_WORLD_ALIGNED:
-            # From body frame to world frame
-            out_pts = self.q.inverse.transformation_matrix @ out_pts
+        # NOTE: This really doesn't have a use case
+        # if out_frame == Frames.BODY_FRAME_WORLD_ALIGNED:
+        #     # From body frame to world frame
+        #     out_pts = self.q.inverse.transformation_matrix @ out_pts
 
         return out_pts
     
