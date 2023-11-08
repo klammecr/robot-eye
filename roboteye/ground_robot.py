@@ -195,18 +195,6 @@ class GroundRobot:
             warnings.warn("E is not initialized properly.")
         return E
     
-    def get_P(self, camera = "0"):
-        """
-        Get the perspective projection matrix for the camera
-
-        Args:
-            camera (str, optional): Camera of interest. Defaults to "0".
-        """
-        K = np.eye(4)
-        K[:3, :3] = self.K[camera]
-        P = K @ self.E[camera] @ self.get_extrinsics_matrix(w_to_rob=True)
-        return P
-    
     def get_extrinsics_matrix(self, w_to_rob = True):
         """
         Find extrinsics matrix depending on the parameter passed in
@@ -240,34 +228,22 @@ class GroundRobot:
 
         return M
     
-    def transform_points(self, points, in_frame: Frames, out_frame: Frames, camera="0"):
+    def get_P(self, in_frame: Frames, out_frame: Frames, camera="0"):
         """
-        Transform points in the camera frame to points in the world frame.
+        Get the projection matrix from in frame to out frame for the camera.
 
-        \param[in] points: 2D or 3D homogenous points, Shape: [n, 4] or [n, 3]
-        \param[in] in_frame:  What frame to transfrom the points from.
-        \param[in] out_frame: What frame to transform the points to.
-        \param[in] camera: String specifying which camera to use for the transform.
-
-        Returns: World points of shape [n, 4]
+        Args:
+            in_frame (Frames): The input frame
+            out_frame (Frames): The output frame
+            camera (str, optional): Which camera in the system to grab. Defaults to "0".
         """
-        # NOTE: Yeah, this has gotten a bit hacky over time. I have a TODO in the future to clean up this logic.
-
-        # Input Checking
-        if points.shape[1] != 3 and points.shape[0] == 3 and in_frame == Frames.IMG_FRAME or \
-           points.shape[1] != 4 and points.shape[0] == 4 and in_frame != Frames.IMG_FRAME:
-            points = points.T
-
-        # Trivial case
-        if in_frame == out_frame:
-            return points
-
-        # Decide how to transform the points
+       # Decide how to transform the points
         direction = 2 * int((in_frame.value - out_frame.value) < 0) - 1
         M_t = np.eye(4)
         M_r = np.eye(4)
-        E = np.eye(4)
-        K = np.eye(3)
+        E   = np.eye(4)
+        K   = np.eye(3)
+        
         for i in range(in_frame.value, out_frame.value + direction, direction):
             # These conditions are for if we need camera extrinsics.
             need_cam_extr = (in_frame.value - i) != 0 and \
@@ -309,6 +285,34 @@ class GroundRobot:
            out_frame == Frames.CAM_FRAME) and \
            abs(in_frame.value - out_frame.value) > 1:
             T = camera_cob @ T
+
+        return K, T
+
+
+    def transform_points(self, points, in_frame: Frames, out_frame: Frames, camera="0"):
+        """
+        Transform points in the camera frame to points in the world frame.
+
+        \param[in] points: 2D or 3D homogenous points, Shape: [n, 4] or [n, 3]
+        \param[in] in_frame:  What frame to transfrom the points from.
+        \param[in] out_frame: What frame to transform the points to.
+        \param[in] camera: String specifying which camera to use for the transform.
+
+        Returns: World points of shape [n, 4]
+        """
+        # NOTE: Yeah, this has gotten a bit hacky over time. I have a TODO in the future to clean up this logic.
+
+        # Input Checking
+        if points.shape[1] != 3 and points.shape[0] == 3 and in_frame == Frames.IMG_FRAME or \
+           points.shape[1] != 4 and points.shape[0] == 4 and in_frame != Frames.IMG_FRAME:
+            points = points.T
+
+        # Trivial case
+        if in_frame == out_frame:
+            return points
+
+        # Get the parts of the P matrix (intriniscs and extrinsics)
+        K, T = self.get_P(in_frame, out_frame, camera)
 
         if in_frame == Frames.IMG_FRAME:
             depths  = points[:, 2].reshape(points.shape[0], 1)
