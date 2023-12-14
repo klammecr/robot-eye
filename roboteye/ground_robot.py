@@ -80,11 +80,11 @@ class GroundRobot:
             K = np.array(cam_calib["K"])
             if isinstance(K, np.ndarray):
                 self.add_camera_intrinsics(K, "0")
-        elif "E" in cam_calib.keys():
+        if "E" in cam_calib.keys():
             E = np.array(cam_calib["E"])
             if isinstance(E, np.ndarray):
                 self.add_camera_extrinsics(E, "0")
-        else:
+        if "K" not in cam_calib.keys() and "E" not in cam_calib.keys():
             self.set_camera_calibration(cam_calib)
 
         # Set the rotation and translation of the robot
