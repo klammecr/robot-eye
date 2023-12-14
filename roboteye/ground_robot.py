@@ -80,7 +80,7 @@ class GroundRobot:
             K = np.array(cam_calib["K"])
             if isinstance(K, np.ndarray):
                 self.add_camera_intrinsics(K, "0")
-        if "E" in cam_calib.keys():
+        elif "E" in cam_calib.keys():
             E = np.array(cam_calib["E"])
             if isinstance(E, np.ndarray):
                 self.add_camera_extrinsics(E, "0")
@@ -152,6 +152,8 @@ class GroundRobot:
         """
         if rot_quat is not None:
             self.q = Quaternion(rot_quat)
+        else:
+            self.q = Quaternion()
 
         if position is not None:
             self.rob_pos = position
@@ -315,6 +317,7 @@ class GroundRobot:
         K, T = self.get_P(in_frame, out_frame, camera)
 
         if in_frame == Frames.IMG_FRAME:
+            points  = points[points[:, -1] > 0]
             depths  = points[:, 2].reshape(points.shape[0], 1)
             locs    = (points[:, :3] / depths)[:, :2]
             out_pts = inv_pi(K, T, locs, depths.flatten())
