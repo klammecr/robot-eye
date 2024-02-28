@@ -252,7 +252,7 @@ class GroundRobot:
                             ((i==2 and direction==-1) or (i==3 and direction==1))
             
             # Move to world center
-            if i == 0:
+            if i == 0 and direction == -1 or i == 1 and direction == 1:
                 M_t[:3, -1] = -self.rob_pos
             # Aligning points that were w.r.t. robot
             if i == 1 and direction == -1 or i == 2 and direction == 1:
