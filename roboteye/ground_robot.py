@@ -84,7 +84,7 @@ class GroundRobot:
             E = np.array(cam_calib["E"])
             if isinstance(E, np.ndarray):
                 self.add_camera_extrinsics(E, "0")
-        if "K" not in cam_calib.keys() and "E" not in cam_calib.keys():
+        else:
             self.set_camera_calibration(cam_calib)
 
         # Set the rotation and translation of the robot
@@ -151,9 +151,7 @@ class GroundRobot:
         \param[in] position: Position of the robot relative to the world origin
         """
         if rot_quat is not None:
-            self.q = Quaternion(rot_quat)
-        else:
-            self.q = Quaternion()
+            self.q = Quaternion(w=rot_quat[-1], x=rot_quat[0], y = rot_quat[1], z = rot_quat[2])
 
         if position is not None:
             self.rob_pos = position
@@ -277,18 +275,15 @@ class GroundRobot:
             K = np.linalg.inv(K)
             camera_cob = np.linalg.inv(camera_cob)
 
-        # Project or unproject if need be
-        T = E @ M
-
         # In this case, we will need the change of basis
         if (in_frame == Frames.IMG_FRAME or \
            out_frame == Frames.IMG_FRAME or \
            in_frame == Frames.CAM_FRAME or \
            out_frame == Frames.CAM_FRAME) and \
            abs(in_frame.value - out_frame.value) > 1:
-            T = camera_cob @ T
+            E = camera_cob @ E
 
-        return K, T
+        return K, E, M
 
 
     def transform_points(self, points, in_frame: Frames, out_frame: Frames, camera="0"):
@@ -317,7 +312,6 @@ class GroundRobot:
         K, T = self.get_P(in_frame, out_frame, camera)
 
         if in_frame == Frames.IMG_FRAME:
-            points  = points[points[:, -1] > 0]
             depths  = points[:, 2].reshape(points.shape[0], 1)
             locs    = (points[:, :3] / depths)[:, :2]
             out_pts = inv_pi(K, T, locs, depths.flatten())
